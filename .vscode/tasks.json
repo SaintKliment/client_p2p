@@ -1,0 +1,37 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-g",
+    
+                "-I/usr/include/nlohmann", // Путь к заголовочным файлам nlohmann/json
+                "-I/usr/include/miniupnpc", // Путь к заголовочным файлам miniupnpc
+    
+                "main.cpp",
+                "Crypto.cpp",
+                "NetworkManager.cpp",
+                "Node.cpp",
+                "-o",
+                "my_program",
+    
+                "-lcurl", // Подключение библиотеки curl
+                "-lboost_system", // Подключение библиотеки Boost System
+                "-lboost_thread", // Если используется многопоточность
+                "-lboost_filesystem", // Если используется работа с файловой системой
+                "-lssl", // Подключение библиотеки OpenSSL SSL
+                "-lcrypto", // Подключение библиотеки OpenSSL Crypto
+                "-lminiupnpc", // Подключение библиотеки miniupnpc
+                "-lsecp256k1", // Подключение библиотеки secp256k1
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"]
+        }
+    ]
+}
