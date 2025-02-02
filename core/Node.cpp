@@ -7,11 +7,14 @@
 
 using boost::asio::ip::tcp;
 
-Node::Node(const std::string& nodeID) {
-    id = nodeID;
+Node::Node(const std::string& repID, const std::string& sesID) {
+    ReputationID = repID;
+    SessionID = sesID;
+    
     externalIP = getExternalIP();
     port = 54321;
 }
+
 
 std::string Node::getExternalIP() {
     CURL* curl;
@@ -45,8 +48,12 @@ int Node::getPort() {
     return port;
 }
 
-std::string Node::getId() {
-    return id;
+std::string Node::getRepId() {
+    return ReputationID;
+}
+
+std::string Node::getSessionId() {
+    return SessionID;
 }
 
 

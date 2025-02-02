@@ -6,15 +6,19 @@
 
 class Node {
 public:
-    Node(const std::string& nodeID);  
+    Node(const std::string& repID, const std::string& sesID);  
     std::string getExternalIPAddr();  
     int getPort();  
-    std::string getId();
+    std::string getRepId();
+    std::string getSessionId();
 
 private:
-    std::string id;
+    std::string ReputationID;
+    std::string SessionID;
+    
     std::string externalIP;  
     int port;  
+
 
     std::string getExternalIP(); 
     static size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userp);  

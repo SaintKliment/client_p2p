@@ -3,6 +3,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 class CryptoUtils {
 public:
@@ -11,7 +12,10 @@ public:
 
     static std::string generateIDFromPublicKey(const std::string& publicKey);
 
-    static std::string toHex(const unsigned char* data, size_t length);
+    static std::string encryptPrivateKey(const std::string& privateKey, const std::string& password);
+    static std::string decryptPrivateKey(const std::string& encryptedHex, const std::string& password);
+
+    static std::string hashPIN(const std::string& pin);
 
 private:
     static bool secp256k1_rand256(unsigned char* data);

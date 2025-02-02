@@ -5,6 +5,9 @@
 #include <vector>
 #include <mutex>
 
+#include <nice/nice.h>
+
+
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/http.hpp>
@@ -19,9 +22,13 @@ class NetworkManager {
 public:
     NetworkManager();
     NetworkManager(const std::string& ip, int port); 
-
-    void startServer(); 
     
+    ~NetworkManager();
+
+    void findICECandidates(const std::string& stunServer, uint16_t stunPort, const std::string& turnServer, uint16_t turnPort);
+    
+    const std::vector<std::string>& getCandidates() const;
+    std::vector<std::string> getSrflxCandidates() const;
 
     bool openPortUPnP(int port);
     void request_register(const std::string& node_ip, int node_port, const std::string& node_id, const std::string& superNode_ip, int superNode_port);
@@ -30,11 +37,11 @@ public:
 private:
     std::string externalIP;
     int port; 
+    std::vector<std::string> candidates;
+    NiceAgent* agent;
+    GMainLoop* main_loop;
 
-
-    void handleClient(boost::asio::ip::tcp::socket socket);
-    void startAccepting(boost::asio::ip::tcp::acceptor& acceptor, boost::asio::io_context& io_context);
+    static void candidateGatheringDone(NiceAgent *agent, guint stream_id, gpointer user_data);
 
 };
-
 #endif // NETWORK_MANAGER_H

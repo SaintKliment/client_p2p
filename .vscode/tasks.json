@@ -1,31 +1,58 @@
+// {
+//     "version": "2.0.0",
+//     "tasks": [
+//         {
+//             "label": "build",
+//             "type": "shell",
+//             "command": "g++",
+//             "args": [
+//                 "-g",
+    
+//                 "-I/usr/include/nlohmann", // Путь к заголовочным файлам nlohmann/json
+//                 "-I/usr/include/miniupnpc", // Путь к заголовочным файлам miniupnpc
+//                 "-I/usr/include/glib-2.0", // Путь к заголовочным файлам GLib
+//                 "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include", // Дополнительный путь к заголовочным файлам GLib
+//                 "-I/usr/include/nice", // Путь к заголовочным файлам libnice
+                
+//                 "main.cpp",
+//                 "Crypto.cpp",
+//                 "NetworkManager.cpp",
+//                 "Node.cpp",
+//                 "-o",
+//                 "my_program",
+    
+//                 "-lcurl", // Подключение библиотеки curl
+//                 "-lboost_system", // Подключение библиотеки Boost System
+//                 "-lboost_thread", // Если используется многопоточность
+//                 "-lboost_filesystem", // Если используется работа с файловой системой
+//                 "-lssl", // Подключение библиотеки OpenSSL SSL
+//                 "-lcrypto", // Подключение библиотеки OpenSSL Crypto
+//                 "-lminiupnpc", // Подключение библиотеки miniupnpc
+//                 "-lsecp256k1", // Подключение библиотеки secp256k1
+//                 "-lnice", // Подключение библиотеки libnice
+//                 "-lgobject-2.0", // Подключение библиотеки GObject
+//                 "-lglib-2.0" // Подключение библиотеки GLib
+//             ],
+//             "group": {
+//                 "kind": "build",
+//                 "isDefault": true
+//             },
+//             "problemMatcher": ["$gcc"]
+//         }
+//     ]
+// }
+
+
 {
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
+            "label": "cmake-build",
             "type": "shell",
-            "command": "g++",
+            "command": "cmake",
             "args": [
-                "-g",
-    
-                "-I/usr/include/nlohmann", // Путь к заголовочным файлам nlohmann/json
-                "-I/usr/include/miniupnpc", // Путь к заголовочным файлам miniupnpc
-    
-                "main.cpp",
-                "Crypto.cpp",
-                "NetworkManager.cpp",
-                "Node.cpp",
-                "-o",
-                "my_program",
-    
-                "-lcurl", // Подключение библиотеки curl
-                "-lboost_system", // Подключение библиотеки Boost System
-                "-lboost_thread", // Если используется многопоточность
-                "-lboost_filesystem", // Если используется работа с файловой системой
-                "-lssl", // Подключение библиотеки OpenSSL SSL
-                "-lcrypto", // Подключение библиотеки OpenSSL Crypto
-                "-lminiupnpc", // Подключение библиотеки miniupnpc
-                "-lsecp256k1", // Подключение библиотеки secp256k1
+                "--build",
+                "${workspaceFolder}/build"
             ],
             "group": {
                 "kind": "build",
