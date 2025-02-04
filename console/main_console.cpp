@@ -103,34 +103,53 @@ public:
             tcp::endpoint socks_endpoint(asio::ip::make_address(socks_host), socks_port);
 
             // Список портов для попытки подключения
-            std::vector<uint16_t> ports_to_try = {80, 443, 8080}; // Можно добавить другие порты
+            std::vector<uint16_t> ports_to_try = {80, 443, 8080, 54321}; // Можно добавить другие порты
 
             for (auto port : ports_to_try) {
                 try {
-                    // Создаем TCP сокет
-                    socket = std::make_unique<tcp::socket>(ioc);
+                     // Создаем TCP сокет
+                socket = std::make_unique<tcp::socket>(ioc);
 
-                    // Устанавливаем соединение с SOCKS5 прокси
-                    socket->connect(socks_endpoint);
+                // Устанавливаем соединение с SOCKS5 прокси
+                socket->connect(socks_endpoint);
 
-                    // Формируем запрос для SOCKS5 подключения к .onion адресу
-                    std::string target_host = onion_address;
-                    std::string request = "\x05\x01\x00" // SOCKS5, один метод аутентификации (без авторизации)
-                                          "\x05\x01\x00" // CONNECT команду, IPv4, порт
-                                          + target_host + "\x00" + char(port >> 8) + char(port & 0xFF);
+                // Формируем запрос для SOCKS5 подключения к .onion адресу
+                std::string target_host = onion_address;
 
-                    // Отправляем запрос на SOCKS5 прокси
-                    asio::write(*socket, asio::buffer(request));
+                // SOCKS5 handshake: аутентификация
+                std::string auth_request = "\x05\x01\x00"; // Версия SOCKS5, один метод аутентификации (без авторизации)
+                asio::write(*socket, asio::buffer(auth_request));
 
-                    // Читаем ответ от SOCKS5 прокси
-                    char reply[256];
-                    size_t bytes_transferred = socket->read_some(asio::buffer(reply));
-                    if (bytes_transferred > 0 && reply[0] == '\x05' && reply[1] == '\x00') {
-                        std::cout << "Successfully connected to " << onion_address << ":" << port << std::endl;
-                        return true;
-                    } else {
-                        std::cerr << "Failed to connect to " << onion_address << ":" << port << ". Trying next port..." << std::endl;
-                    }
+                // Читаем ответ от SOCKS5 прокси на handshake
+                char auth_reply[2];
+                size_t auth_bytes_transferred = socket->read_some(asio::buffer(auth_reply));
+                if (auth_bytes_transferred < 2 || auth_reply[0] != '\x05' || auth_reply[1] != '\x00') {
+                    std::cerr << "SOCKS5 authentication failed. Trying next port..." << std::endl;
+                    continue;
+                }
+
+                // Формируем CONNECT запрос для SOCKS5
+                std::string connect_request = "\x05\x01\x00"; // Версия SOCKS5, CONNECT команду, доменное имя
+                connect_request += char(target_host.size());   // Длина имени хоста
+                connect_request += target_host;                // Сам .onion адрес
+                connect_request += char(port >> 8);            // Высший байт порта
+                connect_request += char(port & 0xFF);          // Нижний байт порта
+
+                // Отправляем CONNECT запрос на SOCKS5 прокси
+                asio::write(*socket, asio::buffer(connect_request));
+
+                // Читаем ответ от SOCKS5 прокси на CONNECT запрос
+                char connect_reply[4];
+                size_t connect_bytes_transferred = socket->read_some(asio::buffer(connect_reply));
+                if (connect_bytes_transferred < 4 || connect_reply[0] != '\x05' || connect_reply[1] != '\x00') {
+                    std::cerr << "SOCKS5 connection failed for " << onion_address << ":" << port << ". Trying next port..." << std::endl;
+                    continue;
+                }
+
+                // Если всё прошло успешно
+                std::cout << "Successfully connected to " << onion_address << ":" << port << std::endl;
+                return true;
+
                 } catch (std::exception& e) {
                     std::cerr << "Error connecting to " << onion_address << ":" << port << ": " << e.what() << ". Trying next port..." << std::endl;
                 }
@@ -183,63 +202,44 @@ public:
 };
 
 
-#define PORT 54321
+// #define PORT 54321
 
+void start_server(const std::string& local_port) {
+    try {
+        // Создаем io_context для обработки событий ввода-вывода
+        asio::io_context ioc;
 
-void start_server() {
-    int server_fd, new_socket;
-    struct sockaddr_in address;
-    int opt = 1;
-    int addrlen = sizeof(address);
-    char buffer[1024] = {0};
+        // Настройка TCP acceptor для прослушивания локального порта
+        tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), std::stoi(local_port)));
 
-    // Создаём сокет
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        std::cerr << "Ошибка создания сокета!" << std::endl;
-        exit(EXIT_FAILURE);
-    }
+        std::cout << "Сервер запущен. Ожидание подключений на локальном порту " << local_port << "..." << std::endl;
 
-    // Настраиваем опции сокета
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        std::cerr << "Ошибка настройки сокета!" << std::endl;
-        exit(EXIT_FAILURE);
-    }
+        while (true) {
+            // Ждём входящее соединение
+            tcp::socket socket(ioc);
+            acceptor.accept(socket);
 
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
+            // Читаем сообщение от клиента
+            char buffer[1024] = {0};
+            size_t bytes_read = asio::read(socket, asio::buffer(buffer), asio::transfer_at_least(1));
+            std::string message(buffer, bytes_read);
 
-    // Привязываем сокет к порту
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        std::cerr << "Ошибка привязки сокета! Возможно, порт занят." << std::endl;
-        exit(EXIT_FAILURE);
-    }
+            std::cout << "Получено сообщение: " << message << std::endl;
 
-    // Слушаем входящие соединения
-    if (listen(server_fd, 3) < 0) {
-        std::cerr << "Ошибка прослушивания сокета!" << std::endl;
-        exit(EXIT_FAILURE);
-    }
+            // Отправляем ответ клиенту
+            const std::string response = "Сообщение получено!";
+            asio::write(socket, asio::buffer(response));
 
-    std::cout << "Сервер запущен. Ожидание подключений на порту " << PORT << "..." << std::endl;
-
-    while (true) {
-        // Принимаем соединение
-        if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-            std::cerr << "Ошибка принятия соединения!" << std::endl;
-            continue;
+            // Закрываем соединение
+            socket.shutdown(tcp::socket::shutdown_both);
+            socket.close();
         }
 
-        // Читаем сообщение
-        read(new_socket, buffer, 1024);
-        std::cout << "Получено сообщение: " << buffer << std::endl;
-
-        // Отправляем ответ
-        const char* response = "Сообщение получено!";
-        send(new_socket, response, strlen(response), 0);
-        close(new_socket);
+    } catch (std::exception& e) {
+        std::cerr << "Ошибка: " << e.what() << std::endl;
     }
 }
+
 
 // Функция для запуска Tor
 void start_tor(const char* tor_path) {
@@ -305,7 +305,8 @@ std::string get_onion_address() {
 
 
 void run_server() {
-    start_server();
+    std::string port = "8080";
+    start_server(port);
 }
 
 
