@@ -38,6 +38,36 @@
 #define TOR_PROXY_PORT 9050
 
 
+
+void free_port(int port) {
+    // Команда для поиска процесса, использующего порт
+    std::string command = "sudo lsof -i:" + std::to_string(port) + " -t";
+    FILE* pipe = popen(command.c_str(), "r");
+    if (!pipe) {
+        std::cerr << "Ошибка при выполнении команды lsof!" << std::endl;
+        return;
+    }
+
+    char buffer[128];
+    std::string result = "";
+    while (!feof(pipe)) {
+        if (fgets(buffer, 128, pipe) != nullptr) {
+            result += buffer;
+        }
+    }
+    pclose(pipe);
+
+    // Если найден PID, завершаем процесс
+    if (!result.empty()) {
+        int pid = std::stoi(result);
+        std::cout << "Порт " << port << " занят процессом с PID: " << pid << ". Завершаем процесс..." << std::endl;
+        std::string kill_command = "sudo kill -9 " + std::to_string(pid);
+        system(kill_command.c_str());
+    } else {
+        std::cout << "Порт " << port << " свободен." << std::endl;
+    }
+}
+
 class Contact {
 private:
     std::string onion_address;
@@ -184,6 +214,13 @@ void start_tor(const char* tor_path) {
         Log notice file ./tor.log
         HiddenServiceDir ./hidden_service/
         HiddenServicePort 80 127.0.0.1:8080
+        
+        Log notice file ./tor.log
+        Log info file ./tor_info.log
+        Log debug file ./tor_debug.log
+
+        Log warn file ./tor_warn.log
+        Log err file ./tor_err.log
     )";
 
     // Записываем конфигурацию в файл
@@ -426,7 +463,8 @@ int main() {
 
 
 
-
+    free_port(9050);
+    
     const char* tor_path = "../bin/tor";
 
     // Запускаем Tor
