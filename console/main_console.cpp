@@ -13,7 +13,6 @@
 #include <openssl/evp.h>
 
 
-
 #include <cstdlib>
 #include <sys/wait.h>
 #include <sys/socket.h>
@@ -21,6 +20,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <limits.h> // Для PATH_MAX
+#include <fstream> 
 
 
 
