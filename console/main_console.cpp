@@ -477,7 +477,6 @@ while (true) {
             std::cout << "Выберите контакт (номер): ";
             int index;
             std::cin >> index;
-            index--;
 
             if (index < 1 || index > static_cast<int>(contacts.size())) {
                 std::cout << "Неверный номер контакта.\n";
