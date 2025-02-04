@@ -10,4 +10,6 @@ target_link_libraries(console PRIVATE
     PkgConfig::MINIUPNPC
     CURL::libcurl
     OpenSSL::Crypto # Добавляем OpenSSL
+    
 )
+

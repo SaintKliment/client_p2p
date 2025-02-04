@@ -6,24 +6,15 @@ set(CMAKE_AUTOMOC ON) # Автоматическая генерация MOC
 set(CMAKE_CXX_STANDARD 17) # Используйте стандарт C++17 или выше
 
 
-# Находим pkg-config (для поиска библиотек)
 find_package(PkgConfig REQUIRED)
 
-# Ищем GLib (glib-2.0 и gobject-2.0)
 pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0 gobject-2.0)
-
-# Ищем libnice
 pkg_check_modules(NICE REQUIRED IMPORTED_TARGET nice)
-
-# Ищем libsecp256k1
 pkg_check_modules(SECP256K1 REQUIRED IMPORTED_TARGET libsecp256k1)
-
-# Ищем miniupnpc
 pkg_check_modules(MINIUPNPC REQUIRED IMPORTED_TARGET miniupnpc)
 
 # Ищем libcurl
 find_package(CURL REQUIRED)
-
 # Ищем OpenSSL
 find_package(OpenSSL REQUIRED)
 
@@ -42,3 +33,4 @@ set(MINIUPNPC_LIBRARIES PkgConfig::MINIUPNPC)
 set(CURL_LIBRARIES CURL::libcurl)
 set(OPENSSL_LIBRARIES OpenSSL::Crypto)
 set(QT_WIDGETS Qt6::Widgets)
+

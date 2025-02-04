@@ -1,18 +1,6 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-// Защита от конфликтов имён GLib
-#ifdef __cplusplus
-#define signals signals_
-#endif
-
-#include <gio/gio.h>
-
-#ifdef __cplusplus
-#undef signals
-#endif
-
-// Включение заголовочных файлов Qt6
 #include <QApplication>
 #include <QWidget>
 #include <QLineEdit>
@@ -25,14 +13,7 @@
 #include <QTextStream>
 #include <string>
 #include <filesystem>
-#include <fstream> // Убедитесь, что этот заголовочный файл включен
-
-// Включение ваших собственных заголовочных файлов
-#include "../../core/Crypto.h"
-#include "../../core/Serialization.h"
-#include "../../core/NetworkManager.h"
-#include "../../core/Node.h"
-
+#include <fstream> 
 namespace fs = std::filesystem;
 
 class MainWindow : public QWidget {
@@ -40,16 +21,30 @@ class MainWindow : public QWidget {
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-    // ~MainWindow(); // Деструктор должен быть объявлен
+    ~MainWindow() override;
 
 private slots:
     void onSubmit();
+    void toggleFullScreen();
 
 private:
     QLineEdit *pinEdit;
-    void processPIN(const std::string& pin);
-    bool fileExists(const std::string& filename);
-    void showInfo(const QString& title, const QString& message);
+    QPushButton *submitButton;
+    QPushButton *fullScreenButton; // Кнопка для переключения полноэкранного режима
+    QLabel *titleLabel;            // Заголовок
+    QLabel *infoLabel;             // Информационное поле
+    QWidget *centerBox;            // Центральный блок
+    
+
+    QLabel *reputationIDLabel;
+    QLabel *sessionIDLabel;
+
+    void processPIN(const std::string &pin);
+    bool fileExists(const std::string &filename);
+    void showInfo(const QString &title, const QString &message);
+
+    // Метод для переключения интерфейса
+    void switchToDisplayMode();
 };
 
 #endif // MAINWINDOW_H
