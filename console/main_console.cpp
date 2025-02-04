@@ -6,7 +6,7 @@
 #include <chrono>
 #include "../core/Crypto.h"
 #include <sys/stat.h>
-#include <fstream>
+#include <boost/filesystem.hpp>
 #include "../core/Serialization.h"
 #include <iomanip>
 #include <sstream>
@@ -234,7 +234,7 @@ void run_server() {
 
 
 
-namespace fs = std::filesystem;
+namespace fs = boost::filesystem;
 
 bool fileExists(const std::string& filename) {
     return fs::exists(filename);

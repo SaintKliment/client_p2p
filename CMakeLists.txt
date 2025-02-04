@@ -4,6 +4,14 @@ project(MyProject)
 # Настройка стандартов и автоматической генерации MOC
 set(CMAKE_AUTOMOC ON) # Автоматическая генерация MOC
 set(CMAKE_CXX_STANDARD 17) # Используйте стандарт C++17 или выше
+set(CMAKE_CXX_EXTENSIONS False)
+
+find_package(Boost REQUIRED COMPONENTS filesystem system)
+if (Boost_FOUND)
+    message(STATUS "Boost found: ${Boost_INCLUDE_DIRS}")
+else()
+    message(FATAL_ERROR "Boost not found!")
+endif()
 
 
 find_package(PkgConfig REQUIRED)
@@ -33,4 +41,3 @@ set(MINIUPNPC_LIBRARIES PkgConfig::MINIUPNPC)
 set(CURL_LIBRARIES CURL::libcurl)
 set(OPENSSL_LIBRARIES OpenSSL::Crypto)
 set(QT_WIDGETS Qt6::Widgets)
-
