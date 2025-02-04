@@ -23,11 +23,10 @@
 #include <fstream> 
 
 
+#include <boost/asio.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/version.hpp>
 
-
-
-#include <iostream>
-#include <string>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -38,6 +37,9 @@
 #define TOR_PROXY_PORT 9050
 
 
+
+namespace asio = boost::asio;
+using tcp = asio::ip::tcp;
 
 void free_port(int port) {
     // Команда для поиска процесса, использующего порт
@@ -68,78 +70,118 @@ void free_port(int port) {
     }
 }
 
+
+
 class Contact {
 private:
-    std::string onion_address;
-    int sock;
+    std::string onion_address; // .onion адрес контакта
+    std::unique_ptr<tcp::socket> socket; // Сокет для соединения
 
 public:
-    Contact(const std::string& address) : onion_address(address), sock(-1) {}
+    // Конструктор с указанием только .onion адреса
+    Contact(const std::string& address) : onion_address(address), socket(nullptr) {}
 
     // Метод для получения .onion адреса
     std::string get_onion_address() const {
         return onion_address;
     }
 
-    // Подключение к узлу
-    bool connect_to_node() {
-        struct sockaddr_in serv_addr;
-        struct hostent* host;
+    // Метод для подключения к узлу через SOCKS5-прокси
+    bool connectToNode() {
+        try {
+            // Создаем io_context для обработки событий ввода-вывода
+            asio::io_context ioc;
 
-        // Разрешаем .onion домен через gethostbyname
-        host = gethostbyname(onion_address.c_str());
-        if (!host) {
-            std::cerr << "Ошибка разрешения .onion адреса!" << std::endl;
+            // Настройка resolver для работы с SOCKS5
+            tcp::resolver resolver(ioc);
+
+            // Адрес SOCKS5 прокси (обычно локальный хост и порт 9050 или 9150)
+            std::string socks_host = "127.0.0.1";
+            uint16_t socks_port = 9050;
+
+            // Настройка endpoint для SOCKS5 прокси
+            tcp::endpoint socks_endpoint(asio::ip::make_address(socks_host), socks_port);
+
+            // Список портов для попытки подключения
+            std::vector<uint16_t> ports_to_try = {80, 443, 8080}; // Можно добавить другие порты
+
+            for (auto port : ports_to_try) {
+                try {
+                    // Создаем TCP сокет
+                    socket = std::make_unique<tcp::socket>(ioc);
+
+                    // Устанавливаем соединение с SOCKS5 прокси
+                    socket->connect(socks_endpoint);
+
+                    // Формируем запрос для SOCKS5 подключения к .onion адресу
+                    std::string target_host = onion_address;
+                    std::string request = "\x05\x01\x00" // SOCKS5, один метод аутентификации (без авторизации)
+                                          "\x05\x01\x00" // CONNECT команду, IPv4, порт
+                                          + target_host + "\x00" + char(port >> 8) + char(port & 0xFF);
+
+                    // Отправляем запрос на SOCKS5 прокси
+                    asio::write(*socket, asio::buffer(request));
+
+                    // Читаем ответ от SOCKS5 прокси
+                    char reply[256];
+                    size_t bytes_transferred = socket->read_some(asio::buffer(reply));
+                    if (bytes_transferred > 0 && reply[0] == '\x05' && reply[1] == '\x00') {
+                        std::cout << "Successfully connected to " << onion_address << ":" << port << std::endl;
+                        return true;
+                    } else {
+                        std::cerr << "Failed to connect to " << onion_address << ":" << port << ". Trying next port..." << std::endl;
+                    }
+                } catch (std::exception& e) {
+                    std::cerr << "Error connecting to " << onion_address << ":" << port << ": " << e.what() << ". Trying next port..." << std::endl;
+                }
+            }
+
+            std::cerr << "Failed to connect to " << onion_address << " on all available ports." << std::endl;
+            return false;
+
+        } catch (std::exception& e) {
+            std::cerr << "General error: " << e.what() << std::endl;
             return false;
         }
-
-        // Создаём сокет
-        if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-            std::cerr << "Ошибка создания сокета!" << std::endl;
-            return false;
-        }
-
-        serv_addr.sin_family = AF_INET;
-        serv_addr.sin_port = htons(80); // Порт скрытого сервиса
-        memcpy(&serv_addr.sin_addr, host->h_addr, host->h_length);
-
-        // Подключаемся через Tor
-        if (::connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-            std::cerr << "Ошибка подключения к .onion адресу!" << std::endl;
-            close(sock);
-            sock = -1;
-            return false;
-        }
-
-        std::cout << "Подключено к " << onion_address << std::endl;
-        return true;
     }
 
-    // Отправка сообщения
+    // Метод для отправки сообщения
     void send_message(const std::string& message) {
-        if (sock == -1) {
+        if (!socket) {
             std::cerr << "Ошибка: не установлено соединение с узлом!" << std::endl;
             return;
         }
 
-        send(sock, message.c_str(), message.size(), 0);
-        std::cout << "Сообщение отправлено: " << message << std::endl;
+        try {
+            // Отправляем сообщение через установленное соединение
+            asio::write(*socket, asio::buffer(message + "\n"));
+            std::cout << "Сообщение отправлено: " << message << std::endl;
 
-        // Получаем ответ
-        char buffer[1024] = {0};
-        read(sock, buffer, 1024);
-        std::cout << "Ответ от узла: " << buffer << std::endl;
+            // Получаем ответ от узла
+            char buffer[1024] = {0};
+            size_t bytes_read = socket->read_some(asio::buffer(buffer, sizeof(buffer)));
+            std::cout << "Ответ от узла (" << bytes_read << " байт): " << std::string(buffer, bytes_read) << std::endl;
+
+        } catch (std::exception& e) {
+            std::cerr << "Ошибка при отправке или получении сообщения: " << e.what() << std::endl;
+        }
     }
 
-    // Закрытие соединения
+    // Метод для закрытия соединения
     void disconnect() {
-        if (sock != -1) {
-            close(sock);
-            sock = -1;
-            std::cout << "Соединение с " << onion_address << " закрыто." << std::endl;
+        if (socket) {
+            try {
+                socket->shutdown(tcp::socket::shutdown_both);
+                socket->close();
+                std::cout << "Соединение с " << onion_address << " закрыто." << std::endl;
+            } catch (std::exception& e) {
+                std::cerr << "Ошибка при закрытии соединения: " << e.what() << std::endl;
+            }
+            socket.reset(); // Очищаем указатель на сокет
         }
     }
 };
+
 
 #define PORT 54321
 
@@ -464,7 +506,7 @@ int main() {
 
 
     free_port(9050);
-    
+
     const char* tor_path = "../bin/tor";
 
     // Запускаем Tor
@@ -521,9 +563,8 @@ while (true) {
                 continue;
             }
 
-            // Подключаемся к выбранному контакту
             Contact& selected_contact = contacts[index - 1];
-            if (!selected_contact.connect_to_node()) {
+            if (!selected_contact.connectToNode()) { // Используем правильное имя метода
                 std::cout << "Не удалось подключиться к контакту.\n";
                 continue;
             }
