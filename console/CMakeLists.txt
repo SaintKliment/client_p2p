@@ -38,6 +38,7 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 # Связываем все зависимости с консольным приложением
 target_link_libraries(console PRIVATE
     core  # Ядро проекта
+
     ${GLIB_LIBRARIES}  # GLib
     ${NICE_LIBRARIES}  # NICE
     ${SECP256K1_LIBRARIES}  # SECP256K1

@@ -1,6 +1,6 @@
 #include "MainWindow.h"
-#include "../../core/Crypto.h"
-#include "../../core/Serialization.h"
+#include "../../core/crypto/Crypto.h"
+#include "../../core/serialization/Serialization.h"
 
 #include <QApplication>
 #include <QWidget>

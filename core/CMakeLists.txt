@@ -1,14 +1,19 @@
 # Создаем статическую библиотеку core
 add_library(core STATIC
-    Crypto.cpp
-    Crypto.h
-    NetworkManager.cpp
-    NetworkManager.h
-    Node.cpp
-    Node.h
-    Serialization.cpp 
-    Serialization.h   
+    ./crypto/Crypto.cpp
+    ./crypto/Crypto.h
+    ./nm/NetworkManager.cpp
+    ./nm/NetworkManager.h
+    ./node/Node.cpp
+    ./node/Node.h
+    ./serialization/Serialization.cpp 
+    ./serialization/Serialization.h   
+    ./utils/Utils.cpp
+    ./contact/Contact.cpp
+    ./tor_work/Torw.cpp
 )
+
+
 
 # Подключаем заголовочные файлы
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

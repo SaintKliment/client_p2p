@@ -2,7 +2,7 @@
 #define NODE_H
 
 #include <string>
-#include "Crypto.h" 
+#include "../crypto/Crypto.h" 
 
 class Node {
 public:
@@ -11,6 +11,8 @@ public:
     int getPort();  
     std::string getRepId();
     std::string getSessionId();
+    static void start_server(const std::string& local_port);
+    static void run_server(std::string& port);
 
 private:
     std::string ReputationID;

@@ -1,13 +1,12 @@
 #include <iostream>
-#include "../core/NetworkManager.h"
-#include "../core/Node.h"
+#include "../core/nm/NetworkManager.h"
+#include "../core/node/Node.h"
 #include <locale>
 #include <thread>
 #include <chrono>
-#include "../core/Crypto.h"
+#include "../core/crypto/Crypto.h"
 #include <sys/stat.h>
-#include <boost/filesystem.hpp>
-#include "../core/Serialization.h"
+#include "../core/serialization/Serialization.h"
 #include <iomanip>
 #include <sstream>
 #include <openssl/evp.h>
@@ -32,293 +31,16 @@
 #include <unistd.h>
 #include <cstring>
 #include <netdb.h>
+#include <functional> 
+#include <../core/utils/Utils.h>
+#include <../core/contact/Сontact.h>
+#include <../core/tor_work/Torw.cpp>
 
 #define TOR_PROXY_HOST "127.0.0.1"
 #define TOR_PROXY_PORT 9050
 
 
 
-namespace asio = boost::asio;
-using tcp = asio::ip::tcp;
-
-void free_port(int port) {
-    // Команда для поиска процесса, использующего порт
-    std::string command = "sudo lsof -i:" + std::to_string(port) + " -t";
-    FILE* pipe = popen(command.c_str(), "r");
-    if (!pipe) {
-        std::cerr << "Ошибка при выполнении команды lsof!" << std::endl;
-        return;
-    }
-
-    char buffer[128];
-    std::string result = "";
-    while (!feof(pipe)) {
-        if (fgets(buffer, 128, pipe) != nullptr) {
-            result += buffer;
-        }
-    }
-    pclose(pipe);
-
-    // Если найден PID, завершаем процесс
-    if (!result.empty()) {
-        int pid = std::stoi(result);
-        std::cout << "Порт " << port << " занят процессом с PID: " << pid << ". Завершаем процесс..." << std::endl;
-        std::string kill_command = "sudo kill -9 " + std::to_string(pid);
-        system(kill_command.c_str());
-    } else {
-        std::cout << "Порт " << port << " свободен." << std::endl;
-    }
-}
-
-
-
-class Contact {
-private:
-    std::string onion_address; // .onion адрес контакта
-    std::unique_ptr<tcp::socket> socket; // Сокет для соединения
-
-public:
-    // Конструктор с указанием только .onion адреса
-    Contact(const std::string& address) : onion_address(address), socket(nullptr) {}
-
-    // Метод для получения .onion адреса
-    std::string get_onion_address() const {
-        return onion_address;
-    }
-
-    // Метод для подключения к узлу через SOCKS5-прокси
-    bool connectToNode() {
-        try {
-            // Создаем io_context для обработки событий ввода-вывода
-            asio::io_context ioc;
-
-            // Настройка resolver для работы с SOCKS5
-            tcp::resolver resolver(ioc);
-
-            // Адрес SOCKS5 прокси (обычно локальный хост и порт 9050 или 9150)
-            std::string socks_host = "127.0.0.1";
-            uint16_t socks_port = 9050;
-
-            // Настройка endpoint для SOCKS5 прокси
-            tcp::endpoint socks_endpoint(asio::ip::make_address(socks_host), socks_port);
-
-            // Список портов для попытки подключения
-            std::vector<uint16_t> ports_to_try = {80, 443, 8080, 54321}; // Можно добавить другие порты
-
-            for (auto port : ports_to_try) {
-                try {
-                     // Создаем TCP сокет
-                socket = std::make_unique<tcp::socket>(ioc);
-
-                // Устанавливаем соединение с SOCKS5 прокси
-                socket->connect(socks_endpoint);
-
-                // Формируем запрос для SOCKS5 подключения к .onion адресу
-                std::string target_host = onion_address;
-
-                // SOCKS5 handshake: аутентификация
-                std::string auth_request = "\x05\x01\x00"; // Версия SOCKS5, один метод аутентификации (без авторизации)
-                asio::write(*socket, asio::buffer(auth_request));
-
-                // Читаем ответ от SOCKS5 прокси на handshake
-                char auth_reply[2];
-                size_t auth_bytes_transferred = socket->read_some(asio::buffer(auth_reply));
-                if (auth_bytes_transferred < 2 || auth_reply[0] != '\x05' || auth_reply[1] != '\x00') {
-                    std::cerr << "SOCKS5 authentication failed. Trying next port..." << std::endl;
-                    continue;
-                }
-
-                // Формируем CONNECT запрос для SOCKS5
-                std::string connect_request = "\x05\x01\x00"; // Версия SOCKS5, CONNECT команду, доменное имя
-                connect_request += char(target_host.size());   // Длина имени хоста
-                connect_request += target_host;                // Сам .onion адрес
-                connect_request += char(port >> 8);            // Высший байт порта
-                connect_request += char(port & 0xFF);          // Нижний байт порта
-
-                // Отправляем CONNECT запрос на SOCKS5 прокси
-                asio::write(*socket, asio::buffer(connect_request));
-
-                // Читаем ответ от SOCKS5 прокси на CONNECT запрос
-                char connect_reply[4];
-                size_t connect_bytes_transferred = socket->read_some(asio::buffer(connect_reply));
-                if (connect_bytes_transferred < 4 || connect_reply[0] != '\x05' || connect_reply[1] != '\x00') {
-                    std::cerr << "SOCKS5 connection failed for " << onion_address << ":" << port << ". Trying next port..." << std::endl;
-                    continue;
-                }
-
-                // Если всё прошло успешно
-                std::cout << "Successfully connected to " << onion_address << ":" << port << std::endl;
-                return true;
-
-                } catch (std::exception& e) {
-                    std::cerr << "Error connecting to " << onion_address << ":" << port << ": " << e.what() << ". Trying next port..." << std::endl;
-                }
-            }
-
-            std::cerr << "Failed to connect to " << onion_address << " on all available ports." << std::endl;
-            return false;
-
-        } catch (std::exception& e) {
-            std::cerr << "General error: " << e.what() << std::endl;
-            return false;
-        }
-    }
-
-    // Метод для отправки сообщения
-    void send_message(const std::string& message) {
-        if (!socket) {
-            std::cerr << "Ошибка: не установлено соединение с узлом!" << std::endl;
-            return;
-        }
-
-        try {
-            // Отправляем сообщение через установленное соединение
-            asio::write(*socket, asio::buffer(message + "\n"));
-            std::cout << "Сообщение отправлено: " << message << std::endl;
-
-            // Получаем ответ от узла
-            char buffer[1024] = {0};
-            size_t bytes_read = socket->read_some(asio::buffer(buffer, sizeof(buffer)));
-            std::cout << "Ответ от узла (" << bytes_read << " байт): " << std::string(buffer, bytes_read) << std::endl;
-
-        } catch (std::exception& e) {
-            std::cerr << "Ошибка при отправке или получении сообщения: " << e.what() << std::endl;
-        }
-    }
-
-    // Метод для закрытия соединения
-    void disconnect() {
-        if (socket) {
-            try {
-                socket->shutdown(tcp::socket::shutdown_both);
-                socket->close();
-                std::cout << "Соединение с " << onion_address << " закрыто." << std::endl;
-            } catch (std::exception& e) {
-                std::cerr << "Ошибка при закрытии соединения: " << e.what() << std::endl;
-            }
-            socket.reset(); // Очищаем указатель на сокет
-        }
-    }
-};
-
-
-// #define PORT 54321
-
-void start_server(const std::string& local_port) {
-    try {
-        // Создаем io_context для обработки событий ввода-вывода
-        asio::io_context ioc;
-
-        // Настройка TCP acceptor для прослушивания локального порта
-        tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), std::stoi(local_port)));
-
-        std::cout << "Сервер запущен. Ожидание подключений на локальном порту " << local_port << "..." << std::endl;
-
-        while (true) {
-            // Ждём входящее соединение
-            tcp::socket socket(ioc);
-            acceptor.accept(socket);
-
-            // Читаем сообщение от клиента
-            char buffer[1024] = {0};
-            size_t bytes_read = asio::read(socket, asio::buffer(buffer), asio::transfer_at_least(1));
-            std::string message(buffer, bytes_read);
-
-            std::cout << "Получено сообщение: " << message << std::endl;
-
-            // Отправляем ответ клиенту
-            const std::string response = "Сообщение получено!";
-            asio::write(socket, asio::buffer(response));
-
-            // Закрываем соединение
-            socket.shutdown(tcp::socket::shutdown_both);
-            socket.close();
-        }
-
-    } catch (std::exception& e) {
-        std::cerr << "Ошибка: " << e.what() << std::endl;
-    }
-}
-
-
-// Функция для запуска Tor
-void start_tor(const char* tor_path) {
-    // Создаём директории для данных Tor
-    const char* data_dir = "./tor_data";
-    const char* hidden_service_dir = "./hidden_service";
-    mkdir(data_dir, 0700);
-    mkdir(hidden_service_dir, 0700);
-
-    // Конфигурация Tor
-    std::string torrc_content = R"(
-        SocksPort 9050
-        DataDirectory ./tor_data
-        Log notice file ./tor.log
-        HiddenServiceDir ./hidden_service/
-        HiddenServicePort 80 127.0.0.1:8080
-        
-        Log notice file ./tor.log
-        Log info file ./tor_info.log
-        Log debug file ./tor_debug.log
-
-        Log warn file ./tor_warn.log
-        Log err file ./tor_err.log
-    )";
-
-    // Записываем конфигурацию в файл
-    const char* torrc_file = "./torrc";
-    std::ofstream torrc(torrc_file);
-    torrc << torrc_content;
-    torrc.close();
-
-    // Запускаем Tor как подпроцесс
-    pid_t pid = fork();
-    if (pid == 0) {
-        // Дочерний процесс
-        execl(tor_path, "tor", "-f", torrc_file, nullptr);
-        // Если execl вернул управление, значит произошла ошибка
-        std::cerr << "Ошибка запуска Tor: " << strerror(errno) << std::endl;
-        exit(1);
-    } else if (pid > 0) {
-        // Родительский процесс
-        std::cout << "Tor запущен с PID: " << pid << std::endl;
-    } else {
-        // Ошибка fork
-        std::cerr << "Ошибка fork: " << strerror(errno) << std::endl;
-        exit(1);
-    }
-}
-
-// Функция для получения .onion адреса
-std::string get_onion_address() {
-    const char* hostname_file = "./hidden_service/hostname";
-    std::ifstream file(hostname_file);
-    if (!file.is_open()) {
-        std::cerr << "Не удалось открыть файл hostname!" << std::endl;
-        return "";
-    }
-
-    std::string onion_address;
-    std::getline(file, onion_address);
-    return onion_address;
-}
-
-
-void run_server() {
-    std::string port = "8080";
-    start_server(port);
-}
-
-
-
-
-
-
-namespace fs = boost::filesystem;
-
-bool fileExists(const std::string& filename) {
-    return fs::exists(filename);
-}
 
 std::string getPINFromUser(bool isFirstTime) {
     std::string pin;
@@ -332,9 +54,16 @@ std::string getPINFromUser(bool isFirstTime) {
     }
 }
 
-
 int main() {
     setlocale(LC_ALL, "Russian");
+
+    Utils::free_port(9050);
+
+    Torw tor_instance;
+    const char* tor_path = "../bin/tor";
+
+    tor_instance.start_tor(tor_path);
+    sleep(2);
 
     const std::string privateKeyFilename = "private_key_encrypted.txt";
     const std::string publicKeyFilename = "public_key.txt";
@@ -343,14 +72,14 @@ int main() {
     std::string hexPublicMasterKey;
     std::string hexPrivateMasterKey;
 
-    bool keysExist = fileExists(privateKeyFilename) && fileExists(publicKeyFilename);
+    bool keysExist = Utils::fileExists(privateKeyFilename) && Utils::fileExists(publicKeyFilename);
 
     std::string pin, pinHash;
     std::pair<std::string, std::string> keys;
 
     if (keysExist) {
         // Загрузка существующего хеша PIN-кода
-        if (!fileExists(pinHashFilename)) {
+        if (!Utils::fileExists(pinHashFilename)) {
             std::cerr << "Файл с хешем PIN-кода не найден. Пожалуйста, удалите ключи и повторите попытку." << std::endl;
             return 1;
         }
@@ -506,25 +235,18 @@ int main() {
 
 
 
-    free_port(9050);
-
-    const char* tor_path = "../bin/tor";
-
-    // Запускаем Tor
-    start_tor(tor_path);
-
-    // Ждём, пока Tor создаст .onion адрес
-    sleep(5); // Даём время для создания скрытого сервиса
+    
 
     // Получаем .onion адрес
-    std::string onion_address = get_onion_address();
+    std::string onion_address = tor_instance.get_onion_address();
     if (!onion_address.empty()) {
         std::cout << "Ваш .onion адрес: " << onion_address << std::endl;
     } else {
         std::cerr << "Не удалось сгенерировать .onion адрес!" << std::endl;
     }
 
-    std::thread server_thread(run_server);
+    std::string server_port= "8080";
+    Node::run_server(server_port);
 
     sleep(8); 
 
@@ -584,13 +306,6 @@ while (true) {
             std::cout << "Неверный выбор.\n";
         }
     }
-
-
-
-    server_thread.join();
-
-
-
 
 
     while (true) {

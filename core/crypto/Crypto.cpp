@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <cctype>
 #include <vector>
-#include "Serialization.h"
+#include "./serialization/Serialization.h"
 #include <openssl/sha.h>
 
 #define AES_KEY_LENGTH 32 // Для AES-256
