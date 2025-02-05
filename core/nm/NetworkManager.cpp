@@ -54,8 +54,10 @@ bool  NetworkManager::openPortUPnP(int port) {
         std::cout << "UPnP ���������� �������!" << std::endl;
     }
 
+    // char lanAddress[64];
+    // int lanAddressSize = sizeof(lanAddress); lanAddress, lanAddressSize,
 
-    if (UPNP_GetValidIGD(devlist, &urls, &data, externalIP, sizeof(externalIP)) != 1) {
+    if (UPNP_GetValidIGD(devlist, &urls, &data, externalIP,  sizeof(externalIP)) != 1) {
         std::cerr << "Failed to find a valid IGD." << std::endl;
         freeUPNPDevlist(devlist);
         return false;

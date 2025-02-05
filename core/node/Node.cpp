@@ -109,6 +109,6 @@ void Node::run_server(std::string& port) {
     std::thread server_thread(start_server , std::ref(port));
  
     if (server_thread.joinable()) {
-            server_thread.join();
-        }
+        server_thread.detach(); // Отсоединяем поток, чтобы он работал независимо
+    }
 }

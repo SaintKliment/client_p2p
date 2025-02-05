@@ -248,13 +248,11 @@ int main() {
     std::string server_port= "8080";
     Node::run_server(server_port);
 
-    sleep(8); 
-
     std::vector<Contact> contacts;
 
 
-
-while (true) {
+    sleep(2);
+    while (true) {
         std::cout << "1. Добавить контакт\n2. Отправить сообщение\n3. Выйти\nВыберите действие: ";
         int choice;
         std::cin >> choice;
