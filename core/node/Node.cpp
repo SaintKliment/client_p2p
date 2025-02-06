@@ -87,7 +87,7 @@ void Node::start_server(const std::string& local_port) {
             size_t bytes_read = asio::read(socket, asio::buffer(buffer), asio::transfer_at_least(1));
             std::string message(buffer, bytes_read);
 
-            std::cout << "Получено сообщение: " << message << std::endl;
+            std::cout << "\nПолучено сообщение: " << message << std::endl;
 
             // Отправляем ответ клиенту
             const std::string response = "Сообщение получено!";

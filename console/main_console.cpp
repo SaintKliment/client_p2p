@@ -57,7 +57,7 @@ std::string getPINFromUser(bool isFirstTime) {
 int main() {
     setlocale(LC_ALL, "Russian");
 
-    Utils::free_port(9050);
+    // Utils::free_port(9050);
 
     Torw tor_instance;
     const char* tor_path = "../bin/tor";
@@ -233,10 +233,6 @@ int main() {
         std::cout << candidate << std::endl;
     }
 
-
-
-    
-
     // Получаем .onion адрес
     std::string onion_address = tor_instance.get_onion_address();
     if (!onion_address.empty()) {
@@ -284,8 +280,9 @@ int main() {
                 continue;
             }
 
+            boost::asio::io_context ioc;
             Contact& selected_contact = contacts[index - 1];
-            if (!selected_contact.connectToNode()) { // Используем правильное имя метода
+            if (!selected_contact.connectToNode(ioc)) { // Используем правильное имя метода
                 std::cout << "Не удалось подключиться к контакту.\n";
                 continue;
             }
@@ -297,7 +294,7 @@ int main() {
             std::getline(std::cin, message);
 
             selected_contact.send_message(message);
-            selected_contact.disconnect();
+            // selected_contact.disconnect()
         } else if (choice == 3) {
             break;
         } else {

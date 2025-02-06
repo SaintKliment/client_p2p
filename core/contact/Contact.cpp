@@ -19,138 +19,89 @@ std::string Contact::get_onion_address() const {
     return onion_address;
 }
 
-// Метод для подключения к узлу через SOCKS5-прокси
-bool Contact::connectToNode() {
+
+bool Contact::connectToNode(boost::asio::io_context& ioc) {
     try {
-        // Создаем io_context для обработки событий ввода-вывода
-        asio::io_context ioc;
 
-        // Настройка resolver для работы с SOCKS5
-        tcp::resolver resolver(ioc);
+        if (!socket) {
+            socket = std::make_unique<boost::asio::ip::tcp::socket>(ioc);
+        }
 
-        // Адрес SOCKS5 прокси (обычно локальный хост и порт 9050 или 9150)
+        // Адрес SOCKS5 прокси (локальный Tor-прокси)
         std::string socks_host = "127.0.0.1";
         uint16_t socks_port = 9050;
 
+        uint16_t onion_port = 80;
+
         // Настройка endpoint для SOCKS5 прокси
-        tcp::endpoint socks_endpoint(asio::ip::make_address(socks_host), socks_port);
+        boost::asio::ip::tcp::endpoint socks_endpoint(boost::asio::ip::make_address(socks_host), socks_port);
 
-        // Список портов для попытки подключения
-        std::vector<uint16_t> ports_to_try = {8080, 54321, 80, 443}; // Можно добавить другие порты
+        // Создаем сокет для подключения к SOCKS5 прокси
+        boost::asio::ip::tcp::socket socket(ioc);
 
-        for (auto port : ports_to_try) {
-            try {
-                // Создаем TCP сокет
-                socket = std::make_unique<tcp::socket>(ioc);
-                std::cout << "TCP socket created." << std::endl;
+        // Подключаемся к SOCKS5 прокси
+        socket.connect(socks_endpoint);
+        std::cout << "Connected to SOCKS5 proxy at " << socks_host << ":" << socks_port << std::endl;
 
-                // Устанавливаем соединение с SOCKS5 прокси
-                std::cout << "Attempting to connect to SOCKS5 proxy at " << socks_host << ":" << socks_port << "..." << std::endl;
-                socket->connect(socks_endpoint);
-                std::cout << "Successfully connected to SOCKS5 proxy." << std::endl;
+        // Выполняем SOCKS5 handshake
+        {
+            // Шаг 1: Отправляем приветствие (версия SOCKS5, методы аутентификации)
+            std::vector<uint8_t> handshake_request = {0x05, 0x01, 0x00}; // Версия 5, 1 метод аутентификации (0x00 — без аутентификации)
+            boost::asio::write(socket, boost::asio::buffer(handshake_request));
 
-                // Формируем запрос для SOCKS5 подключения к .onion адресу
-                std::string target_host = onion_address;
+            // Шаг 2: Получаем ответ от сервера
+            std::vector<uint8_t> response(2);
+            boost::asio::read(socket, boost::asio::buffer(response));
 
-                // SOCKS5 handshake: аутентификация
-                std::cout << "Performing SOCKS5 authentication..." << std::endl;
-                std::string auth_request = "\x05\x01\x00"; // Версия SOCKS5, один метод аутентификации (без авторизации)
-                asio::write(*socket, asio::buffer(auth_request));
-                std::cout << "SOCKS5 authentication request sent." << std::endl;
-
-                // Читаем ответ от SOCKS5 прокси на handshake
-                char auth_reply[2];
-                size_t auth_bytes_transferred = 0;
-                try {
-                    auth_bytes_transferred = socket->read_some(asio::buffer(auth_reply));
-                    std::cout << "Received SOCKS5 authentication response (" << auth_bytes_transferred << " bytes): ";
-                    for (size_t i = 0; i < auth_bytes_transferred; ++i) {
-                        std::cout << "\\x" << std::hex << (unsigned int)(unsigned char)auth_reply[i];
-                    }
-                    std::cout << std::dec << "." << std::endl;
-                } catch (std::exception& e) {
-                    std::cerr << "Error reading SOCKS5 authentication response: " << e.what() << ". Trying next port..." << std::endl;
-                    continue;
-                }
-
-                if (auth_bytes_transferred < 2 || auth_reply[0] != '\x05' || auth_reply[1] != '\x00') {
-                    std::cerr << "SOCKS5 authentication failed. Expected \\x05\\x00, but received: ";
-                    for (size_t i = 0; i < auth_bytes_transferred; ++i) {
-                        std::cerr << "\\x" << std::hex << (unsigned int)(unsigned char)auth_reply[i];
-                    }
-                    std::cerr << std::dec << ". Trying next port..." << std::endl;
-                    continue;
-                }
-                std::cout << "SOCKS5 authentication successful." << std::endl;
-
-                // Формируем CONNECT запрос для SOCKS5
-                std::cout << "Forming CONNECT request for " << target_host << ":" << port << "..." << std::endl;
-                std::string connect_request = "\x05\x01\x00"; // Версия SOCKS5, CONNECT команду, доменное имя
-                connect_request += char(target_host.size());   // Длина имени хоста
-                connect_request += target_host;                // Сам .onion адрес
-                connect_request += char(port >> 8);            // Высший байт порта
-                connect_request += char(port & 0xFF);          // Нижний байт порта
-
-                // Отправляем CONNECT запрос на SOCKS5 прокси
-                std::cout << "Sending CONNECT request to SOCKS5 proxy..." << std::endl;
-                asio::write(*socket, asio::buffer(connect_request));
-                std::cout << "CONNECT request sent." << std::endl;
-
-                // Читаем ответ от SOCKS5 прокси на CONNECT запрос
-                char connect_reply[4];
-                size_t connect_bytes_transferred = 0;
-                try {
-                    connect_bytes_transferred = socket->read_some(asio::buffer(connect_reply));
-                    std::cout << "Received CONNECT response (" << connect_bytes_transferred << " bytes): ";
-                    for (size_t i = 0; i < connect_bytes_transferred; ++i) {
-                        std::cout << "\\x" << std::hex << (unsigned int)(unsigned char)connect_reply[i];
-                    }
-                    std::cout << std::dec << "." << std::endl;
-                } catch (std::exception& e) {
-                    std::cerr << "Error reading CONNECT response: " << e.what() << ". Trying next port..." << std::endl;
-                    continue;
-                }
-
-                if (connect_bytes_transferred < 4 || connect_reply[0] != '\x05' || connect_reply[1] != '\x00') {
-                    std::cerr << "SOCKS5 connection failed for " << onion_address << ":" << port << ". Expected \\x05\\x00, but received: ";
-                    for (size_t i = 0; i < connect_bytes_transferred; ++i) {
-                        std::cerr << "\\x" << std::hex << (unsigned int)(unsigned char)connect_reply[i];
-                    }
-                    std::cerr << std::dec << ". Trying next port..." << std::endl;
-                    continue;
-                }
-
-                // Если всё прошло успешно
-                std::cout << "Successfully connected to " << onion_address << ":" << port << std::endl;
-
-
-                std::string message = "пиривет";
-                const char* buffer = message.c_str();
-                size_t length = message.size();
-                // ssize_t bytes_sent = send(socket_fd, buffer, length, 0);
-                size_t bytes_sent = asio::write(*socket, asio::buffer(buffer, length));
-                
-                if (bytes_sent == -1) {
-                    std::cerr << "Failed to send message" << std::endl;
-                    } else {
-                    std::cout << "Sent " << bytes_sent << " bytes: " << message << std::endl;
-                }
-
-
-    
-                return true;
-            } catch (std::exception& e) {
-                std::cerr << "Error during connection attempt to " << onion_address << ":" << port << ": " << e.what() << ". Trying next port..." << std::endl;
+            if (response[0] != 0x05 || response[1] != 0x00) {
+                throw std::runtime_error("SOCKS5 handshake failed: server does not support no authentication");
             }
+            std::cout << "SOCKS5 handshake successful." << std::endl;
         }
 
-        std::cerr << "Failed to connect to " << onion_address << " on all available ports." << std::endl;
-        return false;
-    } catch (std::exception& e) {
-        std::cerr << "General error: " << e.what() << std::endl;
-        return false;
+        // Выполняем CONNECT-запрос к .onion-адресу
+        {
+            // Шаг 3: Формируем CONNECT-запрос
+            std::vector<uint8_t> request;
+            request.push_back(0x05); // Версия 5
+            request.push_back(0x01); // Команда CONNECT (0x01)
+            request.push_back(0x00); // Зарезервированный байт (0x00)
+            request.push_back(0x03); // Тип адреса: доменное имя (0x03)
+            request.push_back(static_cast<uint8_t>(onion_address.size())); // Длина доменного имени
+            request.insert(request.end(), onion_address.begin(), onion_address.end()); // Доменное имя
+            request.push_back((onion_port >> 8) & 0xFF); // Старший байт порта
+            request.push_back(onion_port & 0xFF);       // Младший байт порта
+
+            // Отправляем CONNECT-запрос
+            boost::asio::write(socket, boost::asio::buffer(request));
+
+            // Шаг 4: Получаем ответ от сервера
+            std::vector<uint8_t> response(10);
+            boost::asio::read(socket, boost::asio::buffer(response));
+
+            if (response[0] != 0x05) {
+                throw std::runtime_error("Invalid SOCKS5 response version");
+            }
+
+            uint8_t reply_code = response[1];
+            if (reply_code != 0x00) {
+                throw std::runtime_error("SOCKS5 connection failed: error code " + std::to_string(reply_code));
+            }
+            std::cout << "SOCKS5 CONNECT request successful. Connected to " << onion_address << ":" << onion_port << std::endl;
+        }
+
+        // Здесь можно добавить логику для отправки данных или получения ответа от .onion-узла
+        return true; // Успешное подключение
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return false; // Ошибка подключения
     }
 }
+
+
+
+
+
 
 // Метод для отправки сообщения
 void Contact::send_message(const std::string& message) {

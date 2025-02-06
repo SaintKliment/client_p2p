@@ -5,6 +5,7 @@
 #include <atomic>
 #include <boost/filesystem.hpp>
 #include <sys/stat.h> // Для mkdir
+// #include <fstream>
 
 Torw::Torw() : is_running(false) {}
 
