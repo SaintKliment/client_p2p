@@ -1,5 +1,5 @@
 # Создаем исполняемый файл для консольного приложения
-add_executable(console main_console.cpp)
+add_executable(console main_console.cpp UserInputCollector.cpp)
 
 # Включение заголовочных файлов Boost (если они используются в консольном приложении)
 find_package(Boost REQUIRED COMPONENTS filesystem system)

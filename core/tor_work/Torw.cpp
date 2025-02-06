@@ -1,10 +1,12 @@
 #include "Torw.h"
+#include "../nm/NetworkManager.h"
 #include <iostream>
 #include <cstdlib> // Для system()
 #include <stdexcept>
 #include <atomic>
 #include <boost/filesystem.hpp>
 #include <sys/stat.h> // Для mkdir
+
 // #include <fstream>
 
 Torw::Torw() : is_running(false) {}
@@ -94,4 +96,22 @@ std::string Torw::get_onion_address() {
     std::string onion_address;
     std::getline(file, onion_address);
     return onion_address;
+}
+
+
+void Torw::check_tor_before_start(){
+    Torw tor_instance;
+    
+    if (!NetworkManager::is_tor_running()) {
+    std::cout << "Tor не запущен. Запускаем Tor...\n";
+    
+
+    const char* tor_path = "../bin/tor";
+
+    tor_instance.start_tor(tor_path);
+
+    } else {
+    std::cout << "Tor уже запущен.\n";
+    }
+    
 }

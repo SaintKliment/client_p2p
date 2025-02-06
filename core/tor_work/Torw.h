@@ -18,6 +18,7 @@ public:
     void start_tor(const char* tor_path);
     // Функция для получения .onion адреса
     std::string get_onion_address();
+    static void check_tor_before_start();
 private:
     // Флаг, указывающий на работу Tor
     bool is_running;

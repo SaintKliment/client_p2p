@@ -33,6 +33,7 @@ public:
     bool openPortUPnP(int port);
     void request_register(const std::string& node_ip, int node_port, const std::string& node_id, const std::string& superNode_ip, int superNode_port);
     void request_nodes(const std::string& node_ip, int node_port, const std::string& node_id, const std::string& superNode_ip, int superNode_port);
+    static bool is_tor_running(int control_port = 9050);
 
 private:
     std::string externalIP;

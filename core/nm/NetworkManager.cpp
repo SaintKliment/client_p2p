@@ -10,6 +10,9 @@
 
 #include <glib.h>
 #include <cstring> // Для memset
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
 
 NetworkManager::NetworkManager() 
@@ -298,4 +301,51 @@ std::vector<std::string> NetworkManager::getSrflxCandidates() const {
         }
     }
     return srflxCandidates;
+}
+
+
+bool NetworkManager::is_tor_running(int control_port) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        std::cerr << "Ошибка создания сокета.\n";
+        return false;
+    }
+
+    // Настройка адреса для подключения
+    sockaddr_in server_addr{};
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(control_port);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // Установка таймаута на подключение
+    struct timeval timeout;
+    timeout.tv_sec = 2;  // 2 секунды
+    timeout.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+    // Попытка подключения
+    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        close(sock);
+        return false;  // Tor не запущен
+    }
+
+    // Отправка команды GETINFO version
+    const char* command = "GETINFO version\r\n";
+    send(sock, command, strlen(command), 0);
+
+    // Получение ответа
+    char buffer[1024];
+    ssize_t bytes_received = recv(sock, buffer, sizeof(buffer) - 1, 0);
+    close(sock);
+
+    if (bytes_received > 0) {
+        buffer[bytes_received] = '\0';  // Завершаем строку
+        std::string response(buffer);
+        if (response.find("version=") != std::string::npos) {
+            return true;  // Tor запущен
+        }
+    }
+
+    return false;  // Tor не запущен или ответ некорректный
 }
