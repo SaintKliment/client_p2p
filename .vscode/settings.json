@@ -79,6 +79,7 @@
         "*.ipp": "cpp",
         "fstream": "cpp",
         "filesystem": "cpp",
-        "bitset": "cpp"
+        "bitset": "cpp",
+        "cerrno": "cpp"
     }
 }

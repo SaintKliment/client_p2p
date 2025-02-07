@@ -11,21 +11,14 @@
 
 Torw::Torw() : is_running(false) {}
 
-Torw::~Torw() {
-    if (tor_thread.joinable()) {
-        tor_thread.join(); // Ждём завершения потока при уничтожении объекта
-    }
-}
 
 
-void Torw::start_tor(const char* tor_path) {
-
+void Torw::start_tor(const char* tor_path, std::string& server_port) {
 
     if (!is_running) {
-        // Запускаем Tor в отдельном потоке
-        tor_thread = std::thread(&Torw::run_tor, this, std::string(tor_path));
+        run_tor(std::string(tor_path), server_port);
         is_running = true;
-        std::cout << "Tor запущен в отдельном потоке." << std::endl;
+        std::cout << "Tor запущен в основном потоке." << std::endl;
     } else {
         std::cout << "Tor уже запущен." << std::endl;
     }
@@ -34,28 +27,31 @@ void Torw::start_tor(const char* tor_path) {
 }
 
 
-void Torw::run_tor(const std::string& tor_path){
+
+void Torw::run_tor(const std::string& tor_path, std::string& server_port){
      // Создаём директории для данных Tor
     const char* data_dir = "./tor_data";
     const char* hidden_service_dir = "./hidden_service";
     mkdir(data_dir, 0700);
     mkdir(hidden_service_dir, 0700);
 
-    // Конфигурация Tor
-    std::string torrc_content = R"(
+    std::ostringstream oss;
+
+    oss << R"(
         SocksPort 9050
         DataDirectory ./tor_data
         Log notice file ./tor.log
         HiddenServiceDir ./hidden_service/
-        HiddenServicePort 80 127.0.0.1:8080
-        
+        HiddenServicePort 80 127.0.0.1:)" << server_port << R"(
+
         Log notice file ./tor.log
         Log info file ./tor_info.log
         Log debug file ./tor_debug.log
-
         Log warn file ./tor_warn.log
         Log err file ./tor_err.log
     )";
+
+    std::string torrc_content = oss.str();
 
     // Записываем конфигурацию в файл
     // const char* torrc_file = "./torrc";
@@ -99,7 +95,7 @@ std::string Torw::get_onion_address() {
 }
 
 
-void Torw::check_tor_before_start(){
+void Torw::check_tor_before_start(std::string& server_port){
     Torw tor_instance;
     
     if (!NetworkManager::is_tor_running()) {
@@ -108,7 +104,7 @@ void Torw::check_tor_before_start(){
 
     const char* tor_path = "../bin/tor";
 
-    tor_instance.start_tor(tor_path);
+    tor_instance.start_tor(tor_path, server_port);
 
     } else {
     std::cout << "Tor уже запущен.\n";

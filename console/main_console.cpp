@@ -38,14 +38,15 @@
 
 
 
-#define TOR_PROXY_HOST "127.0.0.1"
-#define TOR_PROXY_PORT 9050
-
 int main() {
     setlocale(LC_ALL, "Russian");
 
+    Node node;
+    std::string server_port= node.getPort();
+    Node::run_server(server_port);
+
     Torw tor_instance;
-    Torw::check_tor_before_start();
+    // Torw::check_tor_before_start(server_port);
 
     const std::string privateKeyFilename = "private_key_encrypted.txt";
     const std::string publicKeyFilename = "public_key.txt";
@@ -66,20 +67,19 @@ int main() {
 
 
     std::string reputationID = CryptoUtils::generateIDFromPublicKey(hexPrivateMasterKey);
-    std::cout << "Node (private key): " << hexPrivateSessionKey << std::endl;
     std::cout << "Node Reputation ID (from private key): " << reputationID << std::endl;
     
     std::string sessionID = CryptoUtils::generateIDFromPublicKey(hexPublicSessionKey);
-    std::cout << "Node Session ID (from public key): " << sessionID << std::endl;
+    std::cout << "Node Session ID (from hex public key): " << sessionID << std::endl;
+    std::cout << "Node Session (hex private key): " << hexPrivateSessionKey << std::endl;
+
+    node.setReputationID(reputationID);
+    node.setSessionID(sessionID);
 
 
 
-    Node node(reputationID, sessionID);
     NetworkManager nm;
 
-
-    std::string mainNodeIP = "77.239.124.83";
-    int mainNodePort = 5000;
 
     std::string stun_server = "77.239.124.83";
     uint16_t stun_port = 3479;
@@ -103,13 +103,10 @@ int main() {
         std::cerr << "Не удалось сгенерировать .onion адрес!" << std::endl;
     }
 
-    std::string server_port= "8080";
-    Node::run_server(server_port);
-
+    
+    
     std::vector<Contact> contacts;
 
-
-    sleep(2);
     while (true) {
         std::cout << "1. Добавить контакт\n2. Отправить сообщение\n3. Выйти\nВыберите действие: ";
         int choice;
