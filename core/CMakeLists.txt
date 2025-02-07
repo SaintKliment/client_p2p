@@ -11,6 +11,7 @@ add_library(core STATIC
     ./utils/Utils.cpp
     ./contact/Contact.cpp
     ./tor_work/Torw.cpp
+    ./thread_pool/ThreadPool.cpp
 )
 
 

@@ -9,34 +9,28 @@ class Node {
 public:
     Node();  
 
-    std::string getExternalIPAddr();  
-    
     std::string get_available_port();
     std::string getPort(); 
     uint16_t getIntPort(); 
     
     void setReputationID(const std::string& repID);
-    void setSessionID(const std::string& sesID);
     std::string getReputationID() const;
+
+    void setSessionID(const std::string& sesID);
     std::string getSessionID() const;
 
-    std::string getRepId();
-    std::string getSessionId();
-    
+    void setOnion(const std::string& onion);
+    std::string getOnion() const;
+
     static void start_server(const std::string& local_port);
-    static void run_server(std::string& port);
     
 private:
     std::string ReputationID;
     std::string SessionID;
     
-    std::string externalIP;  
+    std::string onion_addr;  
 
     std::string local_port;
-
-
-    std::string getExternalIP(); 
-    static size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userp);  
 };
 
 #endif // NODE_H

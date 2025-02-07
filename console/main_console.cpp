@@ -34,18 +34,24 @@
 #include <../core/utils/Utils.h>
 #include <../core/contact/Сontact.h>
 #include <../core/tor_work/Torw.cpp>
-
-
+#include <../core/thread_pool/ThreadPool.h>
 
 
 int main() {
     setlocale(LC_ALL, "Russian");
+    ThreadPool thread_pool;
 
     Node node;
     std::string server_port= node.getPort();
-    Node::run_server(server_port);
 
+    std::string thread_name_1 = "server_on_port_" + server_port;
+    thread_pool.add_task(thread_name_1, std::bind(&Node::start_server, std::cref(server_port)));
+
+    std::string thread_name_2 = "tor";
     Torw tor_instance;
+    thread_pool.add_task(
+    thread_name_2,
+    std::bind(&Torw::check_tor_before_start, server_port));
     // Torw::check_tor_before_start(server_port);
 
     const std::string privateKeyFilename = "private_key_encrypted.txt";
@@ -75,30 +81,12 @@ int main() {
 
     node.setReputationID(reputationID);
     node.setSessionID(sessionID);
+    
 
-
-
-    NetworkManager nm;
-
-
-    std::string stun_server = "77.239.124.83";
-    uint16_t stun_port = 3479;
-
-    std::string turn_server = "77.239.124.83";
-    uint16_t turn_port = 3479;
-
-    nm.findICECandidates(stun_server, stun_port, turn_server, turn_port);
-
-    const auto& srflxCandidates = nm.getSrflxCandidates();
-    std::cout << "All found srflx candidates:" << std::endl;
-    for (const auto& candidate : srflxCandidates) {
-        std::cout << candidate << std::endl;
-    }
-
-    // Получаем .onion адрес
     std::string onion_address = tor_instance.get_onion_address();
     if (!onion_address.empty()) {
         std::cout << "Ваш .onion адрес: " << onion_address << std::endl;
+        node.setOnion(onion_address);
     } else {
         std::cerr << "Не удалось сгенерировать .onion адрес!" << std::endl;
     }
@@ -159,11 +147,6 @@ int main() {
         } else {
             std::cout << "Неверный выбор.\n";
         }
-    }
-
-
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     return 0;

@@ -1,7 +1,6 @@
 #include "NetworkManager.h"
 #include <iostream>
 #include <boost/asio.hpp>
-#include <thread>
 #include <array>
 
 #include <miniupnpc/miniupnpc.h>
